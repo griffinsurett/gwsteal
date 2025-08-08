@@ -72,18 +72,19 @@ const WebsiteTypes = () => {
   // State for managing autoplay based on section visibility
   const [sectionVisibilityPaused, setSectionVisibilityPaused] = useState(false);
 
-  // Scroll visibility management - pauses autoplay when section is not visible
+  // Scroll visibility management - pauses autoplay when the ENTIRE accordion section is not visible
   const { elementRef: sectionRef, isVisible: isSectionVisible } = useScrollVisibility({
-    threshold: 0.3, // Section needs to be 30% visible to be considered "in view"
-    debounceDelay: 200, // Wait 200ms before triggering visibility changes
+    threshold: 0.2, // Only 20% of the entire section needs to be visible to keep autoplay running
+    debounceDelay: 300, // Wait 300ms before triggering visibility changes to prevent flickering
     onVisible: () => {
-      // Section became visible - resume autoplay if it was paused due to visibility
+      // Entire accordion section became visible - resume autoplay if it was paused due to visibility
       if (sectionVisibilityPaused) {
         setSectionVisibilityPaused(false);
       }
     },
     onHidden: () => {
-      // Section became hidden - pause autoplay to prevent background interference
+      // Entire accordion section became hidden - pause autoplay to prevent background interference
+      // This happens when user scrolls to other sections like testimonials, contact form, etc.
       setSectionVisibilityPaused(true);
     },
   });
@@ -319,16 +320,16 @@ const WebsiteTypes = () => {
                       {websiteTypes[activeIndex].description}
                     </p>
 
-                    {/* Enhanced debug info - now includes visibility state */}
+                    {/* Enhanced debug info - shows section-level visibility state */}
                     <div className="mt-4 text-xs opacity-75 bg-zinc-800 p-2 rounded">
                       <div>
-                        👁️ Section Visible: {isSectionVisible ? "✅" : "❌"}
+                        🏗️ Entire Section Visible: {isSectionVisible ? "✅" : "❌"}
                       </div>
                       <div>
-                        ⏸️ Visibility Paused: {sectionVisibilityPaused ? "✅" : "❌"}
+                        ⏸️ Section Scroll Paused: {sectionVisibilityPaused ? "✅" : "❌"}
                       </div>
                       <div>
-                        ⏸️ User Paused: {isAutoplayPaused ? "✅" : "❌"}
+                        👤 User Interaction Paused: {isAutoplayPaused ? "✅" : "❌"}
                       </div>
                       <div>
                         🔄 Effectively Paused: {effectivelyPaused ? "✅" : "❌"}
