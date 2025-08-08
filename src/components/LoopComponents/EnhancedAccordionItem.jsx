@@ -10,31 +10,14 @@ const EnhancedAccordionItem = ({
   onHover,
   children,
   className = "",
-  name,
-  value,
-  index,
-  shouldShowFullBorder = false,
+  name, // Radio group name
+  value, // Unique value for this accordion item
+  index, // Index of this accordion item
+  shouldShowFullBorder = false, // New prop to control border type
 }) => {
   const { icon, title, description } = data;
   const contentRef = useRef(null);
   const [contentHeight, setContentHeight] = useState(0);
-
-  // Calculate the height of content when it changes
-  useEffect(() => {
-    if (contentRef.current) {
-      // Get the natural height of the content
-      const height = contentRef.current.scrollHeight;
-      setContentHeight(height);
-    }
-  }, [isActive, children]); // Recalculate when active state or children change
-
-  // Handle smooth height transitions by using calculated height instead of max-height
-  const getContentStyle = () => ({
-    height: isActive ? `${contentHeight}px` : '0px',
-    opacity: isActive ? 1 : 0,
-    transition: 'height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-in-out',
-    overflow: 'hidden',
-  });
 
   const handleMouseEnter = () => {
     onHover?.(index, true);
@@ -43,6 +26,32 @@ const EnhancedAccordionItem = ({
   const handleMouseLeave = () => {
     onHover?.(index, false);
   };
+
+  // Measure content height to prevent layout shifts
+  // This ensures smooth animations without affecting page scroll position
+  useEffect(() => {
+    if (contentRef.current) {
+      // Temporarily make visible to measure, then hide again
+      const content = contentRef.current;
+      const originalMaxHeight = content.style.maxHeight;
+      const originalOpacity = content.style.opacity;
+      
+      // Make it temporarily visible to measure
+      content.style.maxHeight = 'none';
+      content.style.opacity = '0';
+      content.style.position = 'absolute';
+      content.style.visibility = 'hidden';
+      
+      const height = content.scrollHeight;
+      setContentHeight(height);
+      
+      // Restore original styles
+      content.style.maxHeight = originalMaxHeight;
+      content.style.opacity = originalOpacity;
+      content.style.position = '';
+      content.style.visibility = '';
+    }
+  }, [isActive, children, description]); // Recalculate when content changes
 
   return (
     <div
@@ -59,67 +68,68 @@ const EnhancedAccordionItem = ({
         value={value}
         checked={isActive}
         onChange={onToggle}
-        className="sr-only"
+        className="sr-only" // Screen reader only - visually hidden but accessible
       />
 
-      {/* Using the AnimatedBorderCard component */}
+      {/* Using the new AnimatedBorderCard component */}
       <AnimatedBorderCard
         isActive={isActive}
         progress={progress}
         showFullBorder={shouldShowFullBorder}
-        className="transition-all duration-200"
+        className="transition-all duration-100"
       >
-        {/* Header - Label for the radio input */}
+        {/* Header - Now a label for the radio input */}
         <label
           htmlFor={`accordion-${value}`}
-          className="w-full text-left flex items-center justify-between p-4 sm:p-5 hover:bg-card/50 transition-colors duration-300 cursor-pointer relative z-20"
+          className="w-full text-left flex items-center justify-between p-5 hover:bg-card/50 transition-colors duration-300 cursor-pointer relative z-20"
         >
-          <div className="flex items-center gap-3">
-            <div className="icon-medium card-icon-color">
-              {icon}
-            </div>
+          <div className="flex items-center gap-2">
+            <div className="icon-medium card-icon-color">{icon}</div>
             <div>
-              <h3 className="h3 text-sm sm:text-base md:text-lg">{title}</h3>
+              <h3 className="h3">{title}</h3>
             </div>
           </div>
 
-          {/* Expand/Collapse Icon with improved animation */}
+          {/* Expand/Collapse Icon - Improved animation timing */}
           <div
             className={`
-              w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center
-              transition-all duration-300 text-lg sm:text-xl font-normal leading-none
+              w-8 h-8 rounded-full flex items-center justify-center
+              transition-all duration-300 text-xl font-normal leading-none
               ${
                 isActive
-                  ? "bg-accent text-black transform rotate-180"
-                  : "bg-accent/20 group-hover:bg-accent/30 text-accent transform rotate-0"
+                  ? "bg-accent text-black rotate-0"
+                  : "bg-accent/20 group-hover:bg-accent/30 text-accent rotate-0"
               }
             `}
           >
-            <span className="block transform translate-y-[-1px]">
+            <span 
+              className={`block transform transition-transform duration-300 translate-y-[-1px] ${
+                isActive ? 'rotate-45' : 'rotate-0'
+              }`}
+            >
               +
             </span>
           </div>
         </label>
 
-        {/* Expandable Content with smooth height animation */}
-        <div style={getContentStyle()}>
-          <div ref={contentRef} className="relative z-20">
-            <div className="px-4 sm:px-6 pb-4 sm:pb-6">
-              {/* Divider */}
-              <div className="w-full h-px bg-accent/20 mb-3 sm:mb-4" />
+        {/* Expandable Content - Using calculated height for smooth animations */}
+        <div
+          ref={contentRef}
+          className="overflow-hidden transition-all duration-500 ease-in-out relative z-20"
+          style={{
+            maxHeight: isActive ? `${contentHeight}px` : '0px',
+            opacity: isActive ? 1 : 0,
+          }}
+        >
+          <div className="px-6 pb-6">
+            {/* Divider */}
+            <div className="w-full h-px bg-accent/20 mb-4" />
 
-              {/* Description */}
-              <p className="secondary-text leading-relaxed mb-4 sm:mb-6 text-sm sm:text-base">
-                {description}
-              </p>
+            {/* Description */}
+            <p className="secondary-text leading-relaxed mb-6">{description}</p>
 
-              {/* Children (Video player on mobile) */}
-              {children && (
-                <div className="lg:hidden">
-                  {children}
-                </div>
-              )}
-            </div>
+            {/* Children (Video player on mobile) */}
+            {children && <div className="lg:hidden">{children}</div>}
           </div>
         </div>
       </AnimatedBorderCard>
