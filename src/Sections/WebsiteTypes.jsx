@@ -3,12 +3,12 @@ import React, { useState, useEffect, useRef } from "react";
 import EnhancedAccordionItem from "../components/LoopComponents/EnhancedAccordionItem";
 import VideoPlayer from "../components/VideoPlayer";
 import useAccordionAutoplay from "../hooks/useAccordionAutoplay";
+import { useViewportAutoplay } from "../hooks/useViewportAutoplay";
 import EarRape from "../assets/Black-Microwave-Earrape.mp4";
 
-const demoVideo = EarRape; // Replace with your video paths
+const demoVideo = EarRape;
 
 const WebsiteTypes = () => {
-  // Add video sources to your existing data
   const websiteTypes = [
     {
       icon: "🚀",
@@ -68,18 +68,30 @@ const WebsiteTypes = () => {
     },
   ];
 
+  // Viewport-based autoplay control
+  const { elementRef, isInViewport, shouldPauseAutoplay } = useViewportAutoplay({
+    rootMargin: '-10% 0px -10% 0px', // Section must be 80% visible
+    threshold: 0.4, // At least 40% visible
+    pauseDelay: 800, // Wait 800ms before pausing when out of view
+    resumeDelay: 300, // Wait 300ms before resuming when back in view
+  });
+
+  // Original accordion autoplay logic
   const {
     activeIndex,
-    isAutoplayPaused,
+    isAutoplayPaused: userEngagedPaused,
     userEngaged,
     shouldPauseAfterVideo,
-    isResumeScheduled, // ADD THIS LINE
+    isResumeScheduled,
     shouldShowFullBorder,
     handleManualSelection,
     handleAccordionHover,
     handleVideoEnded,
     advanceToNext,
   } = useAccordionAutoplay(websiteTypes.length, 0);
+
+  // Combined pause state: pause if either viewport or user engagement requires it
+  const isAutoplayPaused = shouldPauseAutoplay || userEngagedPaused;
 
   const [progress, setProgress] = useState(0);
   const desktopVideoRef = useRef(null);
@@ -88,9 +100,7 @@ const WebsiteTypes = () => {
   const [wasVideoPaused, setWasVideoPaused] = useState(false);
   const advanceTimeoutRef = useRef(null);
 
-  // Get the current active video ref
   const getCurrentVideoRef = () => {
-    // Check if desktop video is visible (window width >= 1024px)
     if (window.innerWidth >= 1024) {
       return desktopVideoRef.current;
     }
@@ -98,23 +108,20 @@ const WebsiteTypes = () => {
   };
 
   const handleVideoClick = () => {
-    // When user clicks on video, pause autoplay to respect their control
     handleManualSelection(activeIndex);
   };
 
-  // Watch for autoplay resume to continue video playback
+  // Watch for autoplay state changes
   useEffect(() => {
     const currentVideo = getCurrentVideoRef();
     if (!currentVideo) return;
 
     if (!isAutoplayPaused && wasVideoPaused) {
-      // Resume video playback when autoplay resumes
       currentVideo.play().catch(() => {
         console.log("Resume play prevented");
       });
       setWasVideoPaused(false);
     } else if (isAutoplayPaused && !currentVideo.paused) {
-      // Only pause video if it was paused by autoplay, not by user click
       if (!currentVideo.dataset.userPaused) {
         currentVideo.pause();
         setWasVideoPaused(true);
@@ -124,33 +131,32 @@ const WebsiteTypes = () => {
 
   // Reset & autoplay whenever the active panel changes
   useEffect(() => {
-    if (isTransitioning) return;
+    if (isTransitioning || isAutoplayPaused) return;
 
-    // Clear any pending advance timeout
     if (advanceTimeoutRef.current) {
       clearTimeout(advanceTimeoutRef.current);
       advanceTimeoutRef.current = null;
     }
 
-    // Small delay to ensure video element is ready
     const timer = setTimeout(() => {
       const desktopVideo = desktopVideoRef.current;
       const mobileVideo = mobileVideoRef.current;
 
-      // Reset and start both videos (only the visible one will actually play)
       [desktopVideo, mobileVideo].forEach((video) => {
         if (video) {
           video.currentTime = 0;
           setProgress(0);
-          video.play().catch((error) => {
-            console.log("Autoplay prevented:", error);
-          });
+          if (!isAutoplayPaused) {
+            video.play().catch((error) => {
+              console.log("Autoplay prevented:", error);
+            });
+          }
         }
       });
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [activeIndex, isTransitioning]);
+  }, [activeIndex, isTransitioning, isAutoplayPaused]);
 
   const handleTimeUpdate = () => {
     const currentVideo = getCurrentVideoRef();
@@ -160,46 +166,36 @@ const WebsiteTypes = () => {
     setProgress(newProgress);
   };
 
-  // ENHANCED: Handle video ended with user engagement logic
   const handleEnded = () => {
     setProgress(100);
 
-    // Clear any existing timeout
     if (advanceTimeoutRef.current) {
       clearTimeout(advanceTimeoutRef.current);
     }
 
-    // Use the new handleVideoEnded from the hook which handles engagement logic
     handleVideoEnded();
-
-    // REMOVED: Don't do additional advancement here - let handleVideoEnded handle it
   };
 
   const handleVideoLoad = () => {
-    // When video loads, just ensure progress is reset
     setProgress(0);
   };
 
-  // Handle radio button changes
   const handleRadioChange = (event) => {
     const selectedIndex = parseInt(event.target.value, 10);
     setIsTransitioning(true);
     handleManualSelection(selectedIndex);
     setProgress(0);
 
-    // Clear any pending advance
     if (advanceTimeoutRef.current) {
       clearTimeout(advanceTimeoutRef.current);
       advanceTimeoutRef.current = null;
     }
 
-    // Brief delay to allow UI to update
     setTimeout(() => {
       setIsTransitioning(false);
     }, 150);
   };
 
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (advanceTimeoutRef.current) {
@@ -209,12 +205,15 @@ const WebsiteTypes = () => {
   }, []);
 
   return (
-    <section className="outer-section bg-secondary relative">
+    <section 
+      ref={elementRef} // Attach the viewport observer to this section
+      className="outer-section bg-secondary relative"
+    >
       <div className="section-dim-border"></div>
       <div className="inner-section">
         <div className="text-section">
           <div className="border-title">Website Types</div>
-          <h2 className="h2 mb-6">
+          <h2 className="h2 mb-4 sm:mb-6">
             Websites We <span className="text-accent-heading">Build</span>
           </h2>
           <p className="large-text">
@@ -224,11 +223,11 @@ const WebsiteTypes = () => {
         </div>
 
         <div
-          className="grid lg:grid-cols-2 gap-6 lg:gap-12"
+          className="grid lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-12"
           data-accordion-container
         >
-          {/* Left: Accordion list */}
-          <div className="flex flex-col space-y-4">
+          {/* Left: Accordion list with improved mobile spacing */}
+          <div className="flex flex-col space-y-3 sm:space-y-4">
             {websiteTypes.map((websiteType, i) => (
               <EnhancedAccordionItem
                 key={i}
@@ -282,7 +281,7 @@ const WebsiteTypes = () => {
                     className="shadow-2xl shadow-accent/20"
                   />
 
-                  {/* Video Info Card with Enhanced Border Animation */}
+                  {/* Video Info Card with status indicators */}
                   <div className="mt-6 p-6 card-bg rounded-xl">
                     <div className="flex items-center gap-4 mb-3">
                       <div className="icon-small card-icon-color">
@@ -294,22 +293,23 @@ const WebsiteTypes = () => {
                       {websiteTypes[activeIndex].description}
                     </p>
 
-                    {/* Enhanced debug info */}
+                    {/* Debug info with viewport status */}
                     <div className="mt-4 text-xs opacity-75 bg-zinc-800 p-2 rounded">
                       <div>
-                        ⏸️ Autoplay Paused: {isAutoplayPaused ? "✅" : "❌"}
-                      </div>
-                      <div>👤 User Engaged: {userEngaged ? "✅" : "❌"}</div>
-                      <div>
-                        ⏳ Pause After Video:{" "}
-                        {shouldPauseAfterVideo ? "✅" : "❌"}
+                        🔍 In Viewport: {isInViewport ? "✅" : "❌"}
                       </div>
                       <div>
-                        ⏲️ Resume Scheduled:{" "}
-                        {isResumeScheduled ? "✅ (5s delay)" : "❌"}
+                        ⏸️ Viewport Paused: {shouldPauseAutoplay ? "✅" : "❌"}
                       </div>
-                      <div>🎪 Active Index: {activeIndex}</div>
-                      <div>📊 Progress: {Math.round(progress)}%</div>
+                      <div>
+                        👤 User Engaged: {userEngaged ? "✅" : "❌"}
+                      </div>
+                      <div>
+                        🎮 Overall Paused: {isAutoplayPaused ? "✅" : "❌"}
+                      </div>
+                      <div>
+                        📊 Progress: {Math.round(progress)}%
+                      </div>
                     </div>
                   </div>
                 </div>
